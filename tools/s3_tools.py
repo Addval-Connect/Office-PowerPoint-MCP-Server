@@ -10,6 +10,7 @@ Required environment variables (set in .env):
     S3_PUBLIC_FOLDER              - S3 URI prefix for uploads (e.g. s3://bucket/public/)
 """
 import os
+import uuid
 from typing import Dict, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -79,7 +80,10 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
     ) -> Dict:
         """Upload a presentation to the configured S3 public folder.
 
-        The file is stored at <S3_PUBLIC_FOLDER>/<filename> in the bucket.
+        A short unique ID is automatically inserted before the extension so
+        uploads never overwrite each other (e.g. report.pptx → report_a1b2c3d4.pptx).
+        The response includes the final s3_key to pass to get_signed_url.
+
         Provide either presentation_id (uploads from memory) or file_path
         (uploads an existing file from ./tmp).
         """
@@ -90,7 +94,11 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
         except RuntimeError as e:
             return {"error": str(e)}
 
-        s3_key = f"{prefix}{filename}"
+        # Inject UID before the extension: report.pptx → report_a1b2c3d4.pptx
+        uid = uuid.uuid4().hex[:8]
+        stem, ext = os.path.splitext(filename)
+        unique_filename = f"{stem}_{uid}{ext}"
+        s3_key = f"{prefix}{unique_filename}"
 
         # Determine the local file to upload
         if file_path:
@@ -99,7 +107,7 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
             pres_id = presentation_id or get_current_presentation_id()
             if pres_id not in presentations:
                 return {"error": f"Presentation '{pres_id}' not found."}
-            local_path = resolve_path(filename)
+            local_path = resolve_path(unique_filename)
             try:
                 presentations[pres_id].save(local_path)
             except Exception as e:
@@ -129,22 +137,19 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
         ),
     )
     def get_signed_url(
-        filename: str,
+        s3_key: str,
         expiration_minutes: int = 60,
     ) -> Dict:
-        """Generate a pre-signed download URL for a file in the S3 public folder.
+        """Generate a pre-signed download URL for a file stored in S3.
 
-        Looks up <S3_PUBLIC_FOLDER>/<filename> and returns a URL that expires
-        after expiration_minutes (default 60).
+        Pass the s3_key returned by save_to_s3 (e.g. "public/report_a1b2c3d4.pptx").
+        The URL expires after expiration_minutes (default 60).
         """
         try:
             s3 = _get_s3_client()
             bucket = _get_bucket()
-            prefix = _get_folder_prefix()
         except RuntimeError as e:
             return {"error": str(e)}
-
-        s3_key = f"{prefix}{filename}"
 
         try:
             url = s3.generate_presigned_url(
