@@ -11,7 +11,7 @@ import base64
 import os
 
 
-def register_content_tools(app: FastMCP, presentations: Dict, get_current_presentation_id, validate_parameters, is_positive, is_non_negative, is_in_range, is_valid_rgb):
+def register_content_tools(app: FastMCP, presentations: Dict, get_current_presentation_id, validate_parameters, is_positive, is_non_negative, is_in_range, is_valid_rgb, resolve_path):
     """Register content management tools with the FastMCP app"""
     
     @app.tool(
@@ -571,6 +571,7 @@ def register_content_tools(app: FastMCP, presentations: Dict, get_current_presen
                         }
                 else:
                     # Handle file path
+                    image_source = resolve_path(image_source)
                     if not os.path.exists(image_source):
                         return {
                             "error": f"Image file not found: {image_source}"
@@ -589,7 +590,10 @@ def register_content_tools(app: FastMCP, presentations: Dict, get_current_presen
                     return {
                         "error": "Enhancement operation requires file path, not base64 data"
                     }
-                
+
+                image_source = resolve_path(image_source)
+                if output_path is not None:
+                    output_path = resolve_path(output_path)
                 if not os.path.exists(image_source):
                     return {
                         "error": f"Image file not found: {image_source}"

@@ -9,7 +9,7 @@ from mcp.types import ToolAnnotations
 import utils as ppt_utils
 
 
-def register_presentation_tools(app: FastMCP, presentations: Dict, get_current_presentation_id, get_template_search_directories):
+def register_presentation_tools(app: FastMCP, presentations: Dict, get_current_presentation_id, get_template_search_directories, resolve_path):
     """Register presentation management tools with the FastMCP app"""
     
     @app.tool(
@@ -91,6 +91,7 @@ def register_presentation_tools(app: FastMCP, presentations: Dict, get_current_p
     )
     def open_presentation(file_path: str, id: Optional[str] = None) -> Dict:
         """Open an existing PowerPoint presentation from a file."""
+        file_path = resolve_path(file_path)
         # Check if file exists
         if not os.path.exists(file_path):
             return {
@@ -126,6 +127,7 @@ def register_presentation_tools(app: FastMCP, presentations: Dict, get_current_p
     )
     def save_presentation(file_path: str, presentation_id: Optional[str] = None) -> Dict:
         """Save a presentation to a file."""
+        file_path = resolve_path(file_path)
         # Use the specified presentation or the current one
         pres_id = presentation_id if presentation_id is not None else get_current_presentation_id()
         

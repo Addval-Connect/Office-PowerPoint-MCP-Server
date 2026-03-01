@@ -31,6 +31,15 @@ app = FastMCP(
 presentations = {}
 current_presentation_id = None
 
+# Tmp directory: all file I/O is restricted to this directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TMP_DIR = os.path.join(BASE_DIR, "tmp")
+os.makedirs(TMP_DIR, exist_ok=True)
+
+def resolve_tmp_path(path: str) -> str:
+    """Resolve any file path to ./tmp/<filename>, enforcing all I/O to the tmp directory."""
+    return os.path.join(TMP_DIR, os.path.basename(path))
+
 # Template configuration
 def get_template_search_directories():
     """
@@ -227,10 +236,11 @@ def open_presentation_wrapper(original_func):
 
 # Register all tool modules
 register_presentation_tools(
-    app, 
-    presentations, 
-    get_current_presentation_id, 
-    get_template_search_directories
+    app,
+    presentations,
+    get_current_presentation_id,
+    get_template_search_directories,
+    resolve_tmp_path
 )
 
 register_content_tools(
@@ -241,7 +251,8 @@ register_content_tools(
     is_positive,
     is_non_negative,
     is_in_range,
-    is_valid_rgb
+    is_valid_rgb,
+    resolve_tmp_path
 )
 
 register_structural_tools(
