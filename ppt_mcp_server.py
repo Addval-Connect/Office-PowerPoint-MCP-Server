@@ -432,6 +432,9 @@ def main(transport: str = "stdio", port: int = 8000):
         base_path = os.environ.get('MCP_BASE_PATH', '').rstrip('/')
         if base_path:
             app.settings.streamable_http_path = f"{base_path}/mcp"
+            # Disable DNS rebinding protection when behind a reverse proxy (nginx
+            # forwards the external Host header which won't match 127.0.0.1)
+            app.settings.transport_security = None
         # Start the FastMCP server with HTTP transport
         try:
             app.run(transport='streamable-http')
