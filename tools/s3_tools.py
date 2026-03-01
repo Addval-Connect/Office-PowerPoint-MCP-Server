@@ -2,11 +2,12 @@
 S3 tools for PowerPoint MCP Server.
 Handles uploading presentations to S3 and generating pre-signed download URLs.
 
-Required environment variables:
-    AWS_ACCESS_KEY_ID     - IAM user access key
-    AWS_SECRET_ACCESS_KEY - IAM user secret key
-    AWS_REGION            - AWS region (e.g. us-east-1)
-    S3_BUCKET_NAME        - Target S3 bucket name
+Required environment variables (set in .env):
+    S3_STORAGE_BUCKET_NAME        - Target S3 bucket name
+    S3_STORAGE_ACCESS_KEY_ID      - IAM user access key
+    S3_STORAGE_SECRET_ACCESS_KEY  - IAM user secret key
+    S3_STORAGE_REGION             - AWS region (e.g. us-east-1)
+    S3_PUBLIC_FOLDER              - S3 URI prefix for uploads (e.g. s3://bucket/public/)
 """
 import os
 from typing import Dict, Optional
@@ -24,14 +25,14 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
         except ImportError:
             raise RuntimeError("boto3 is not installed. Run: pip install boto3")
 
-        access_key = os.environ.get("AWS_ACCESS_KEY_ID")
-        secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-        region = os.environ.get("AWS_REGION", "us-east-1")
+        access_key = os.environ.get("S3_STORAGE_ACCESS_KEY_ID")
+        secret_key = os.environ.get("S3_STORAGE_SECRET_ACCESS_KEY")
+        region = os.environ.get("S3_STORAGE_REGION", "us-east-1")
 
         if not access_key or not secret_key:
             raise RuntimeError(
-                "AWS credentials not set. Please define AWS_ACCESS_KEY_ID and "
-                "AWS_SECRET_ACCESS_KEY environment variables."
+                "AWS credentials not set. Please define S3_STORAGE_ACCESS_KEY_ID and "
+                "S3_STORAGE_SECRET_ACCESS_KEY in the .env file."
             )
 
         return boto3.client(
@@ -42,12 +43,29 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
         )
 
     def _get_bucket() -> str:
-        bucket = os.environ.get("S3_BUCKET_NAME")
+        bucket = os.environ.get("S3_STORAGE_BUCKET_NAME")
         if not bucket:
-            raise RuntimeError(
-                "S3_BUCKET_NAME environment variable is not set."
-            )
+            raise RuntimeError("S3_STORAGE_BUCKET_NAME is not set in the .env file.")
         return bucket
+
+    def _get_folder_prefix() -> str:
+        """Extract the key prefix from S3_PUBLIC_FOLDER.
+
+        S3_PUBLIC_FOLDER=s3://bucket-name/public/  →  prefix = "public/"
+        """
+        folder = os.environ.get("S3_PUBLIC_FOLDER", "")
+        if not folder:
+            return ""
+        # Strip the s3://bucket-name/ part, keep only the path
+        if folder.startswith("s3://"):
+            parts = folder[5:].split("/", 1)   # ["bucket-name", "public/"]
+            prefix = parts[1] if len(parts) > 1 else ""
+        else:
+            prefix = folder
+        # Ensure trailing slash
+        if prefix and not prefix.endswith("/"):
+            prefix += "/"
+        return prefix
 
     @app.tool(
         annotations=ToolAnnotations(
@@ -55,32 +73,32 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
         ),
     )
     def save_to_s3(
-        s3_key: str,
+        filename: str,
         presentation_id: Optional[str] = None,
         file_path: Optional[str] = None,
     ) -> Dict:
-        """Upload a presentation to S3.
+        """Upload a presentation to the configured S3 public folder.
 
-        Either uploads the in-memory presentation (by presentation_id) or an
-        already-saved local file (by file_path).  The file is stored in S3
-        under the given s3_key (e.g. "reports/monthly.pptx").
+        The file is stored at <S3_PUBLIC_FOLDER>/<filename> in the bucket.
+        Provide either presentation_id (uploads from memory) or file_path
+        (uploads an existing file from ./tmp).
         """
         try:
             s3 = _get_s3_client()
             bucket = _get_bucket()
+            prefix = _get_folder_prefix()
         except RuntimeError as e:
             return {"error": str(e)}
+
+        s3_key = f"{prefix}{filename}"
 
         # Determine the local file to upload
         if file_path:
             local_path = resolve_path(file_path)
         elif presentation_id or get_current_presentation_id():
-            # Save the in-memory presentation to a temp file inside ./tmp first
             pres_id = presentation_id or get_current_presentation_id()
             if pres_id not in presentations:
                 return {"error": f"Presentation '{pres_id}' not found."}
-
-            filename = os.path.basename(s3_key) or f"{pres_id}.pptx"
             local_path = resolve_path(filename)
             try:
                 presentations[pres_id].save(local_path)
@@ -111,26 +129,28 @@ def register_s3_tools(app: FastMCP, presentations: Dict, get_current_presentatio
         ),
     )
     def get_signed_url(
-        s3_key: str,
+        filename: str,
         expiration_minutes: int = 60,
     ) -> Dict:
-        """Generate a pre-signed download URL for a file stored in S3.
+        """Generate a pre-signed download URL for a file in the S3 public folder.
 
-        The URL expires after expiration_minutes (default 60).
+        Looks up <S3_PUBLIC_FOLDER>/<filename> and returns a URL that expires
+        after expiration_minutes (default 60).
         """
         try:
             s3 = _get_s3_client()
             bucket = _get_bucket()
+            prefix = _get_folder_prefix()
         except RuntimeError as e:
             return {"error": str(e)}
 
-        expiration_seconds = expiration_minutes * 60
+        s3_key = f"{prefix}{filename}"
 
         try:
             url = s3.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": bucket, "Key": s3_key},
-                ExpiresIn=expiration_seconds,
+                ExpiresIn=expiration_minutes * 60,
             )
         except Exception as e:
             return {"error": f"Failed to generate pre-signed URL: {str(e)}"}
