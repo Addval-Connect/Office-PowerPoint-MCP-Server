@@ -11,6 +11,7 @@ fi
 
 export PYTHONPATH="$SCRIPT_DIR"
 export PPT_TEMPLATE_PATH="$SCRIPT_DIR/templates"
+export MCP_BASE_PATH="${MCP_BASE_PATH:-/ppt-mcp}"
 
 exec "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/ppt_mcp_server.py" \
     --transport http \

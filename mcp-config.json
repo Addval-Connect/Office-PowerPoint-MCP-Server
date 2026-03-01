@@ -1,13 +1,13 @@
 {
   "mcpServers": {
     "ppt": {
-      "command": "/Users/gongzhe/GitRepos/Office-PowerPoint-MCP-Server/.venv/bin/python",
+      "command": "/home/ubuntu/Office-PowerPoint-MCP-Server/.venv/bin/python",
       "args": [
-        "/Users/gongzhe/GitRepos/Office-PowerPoint-MCP-Server/ppt_mcp_server.py"
+        "/home/ubuntu/Office-PowerPoint-MCP-Server/ppt_mcp_server.py"
       ],
       "env": {
-        "PYTHONPATH": "/Users/gongzhe/GitRepos/Office-PowerPoint-MCP-Server",
-        "PPT_TEMPLATE_PATH": "/Users/gongzhe/GitRepos/Office-PowerPoint-MCP-Server/templates"
+        "PYTHONPATH": "/home/ubuntu/Office-PowerPoint-MCP-Server",
+        "PPT_TEMPLATE_PATH": "/home/ubuntu/Office-PowerPoint-MCP-Server/templates"
       }
     }
   }

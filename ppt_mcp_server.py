@@ -427,6 +427,11 @@ def main(transport: str = "stdio", port: int = 8000):
         import asyncio
         # Set the port for HTTP transport
         app.settings.port = port
+        # Set route path from env var (e.g. MCP_BASE_PATH=/ppt-mcp for nginx proxy)
+        # FastMCP streamable-http uses settings.streamable_http_path for the route
+        base_path = os.environ.get('MCP_BASE_PATH', '').rstrip('/')
+        if base_path:
+            app.settings.streamable_http_path = f"{base_path}/mcp"
         # Start the FastMCP server with HTTP transport
         try:
             app.run(transport='streamable-http')
